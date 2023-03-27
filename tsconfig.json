@@ -21,6 +21,12 @@
     "jsx": "react-jsx"
   },
   "include": [
-    "src"
+    "src",
+    "typings"
+  ],
+  "exclude": [
+    "node_modules",
+    "src/utils/pgm.js",
+    "**/*.spec.ts"
   ]
 }
