@@ -1,88 +1,66 @@
+import React, { useEffect, useMemo, useState } from 'react';
+import { useLatest, useMountedState } from "react-use";
+import Player from "../../foxglove/player/player";
+import { useAnalytics } from "../../foxglove/context/AnalyticsContext";
+import AnalyticsMetricsCollector from "../../foxglove/AnalyticsMetricsCollector";
 
-import React, { ReactElement, useEffect } from 'react';
+import {useCurrentLayoutSelector, LayoutState} from "../../foxglove/context/CurrentLayoutContext";
 
-import * as THREE from "three"
-
+import { GlobalVariables } from "../../foxglove/types/types";
+import useShallowMemo from "../../foxglove/hooks/useShallowMemo";
+import { useUserNodeState } from "../../foxglove/context/UserNodeStateContext";
+import UserNodePlayer from "../../foxglove/player/UserNodePlayer";
 import "./index.scss";
 
-let time: any =  1;
+const sourceId = 'foxglove-websocket';
+const rosNumber = "ARX13012104B003";
 
+const EMPTY_GLOBAL_VARIABLES: GlobalVariables = Object.freeze({});
+
+const globalVariablesSelector = (state: LayoutState) => state.selectedLayout?.data?.globalVariables ?? EMPTY_GLOBAL_VARIABLES;
 const ThreeDemo1: React.FC = ( props ) => {
 
+    const analytics = useAnalytics();
+    const [basePlayer, setBasePlayer] = useState<Player | undefined>();
+
+    const globalVariables = useCurrentLayoutSelector(globalVariablesSelector);
+    const { setUserNodeDiagnostics, addUserNodeLogs, setUserNodeRosLib, setUserNodeTypesLib } = useUserNodeState();
+    const userNodeActions = useShallowMemo({
+        setUserNodeDiagnostics,
+        addUserNodeLogs,
+        setUserNodeRosLib,
+        setUserNodeTypesLib,
+    });
+    const globalVariablesRef = useLatest(globalVariables);
+
+    const player = useMemo(() => {
+        if (!basePlayer) {
+            return undefined;
+        }
+        const userNodePlayer = new UserNodePlayer(basePlayer, userNodeActions);
+        userNodePlayer.setGlobalVariables(globalVariablesRef.current);
+        return userNodePlayer;
+    }, [basePlayer, globalVariablesRef, userNodeActions]);
+
+    const metricsCollector = useMemo(() => new AnalyticsMetricsCollector(analytics), [analytics]);
+
     useEffect(() => {
-        console.log(THREE)
+        //{ type: "connection", params: { url: url}
+        const url = "ws://localhost:8765?rosNumber=" + rosNumber;
+        metricsCollector.setProperty("player", sourceId);
+        const newPlayer = new Player({
+            url: url,
+            metricsCollector,
+            sourceId,
+            rosNumber
+        });
 
-        let boxDom:any = document.getElementById("demo1-box")!;
+        setBasePlayer(newPlayer);
 
-        // 创建渲染器
-        const webGLRender = new THREE.WebGLRenderer({antialias: true, canvas: boxDom});
-
-        // 创建场景
-        const scene = new THREE.Scene()
-
-        // 创建相机 透视摄像机
-        const camera = new THREE.PerspectiveCamera(75, boxDom.width / boxDom.height, .1, 500);
-        camera.aspect = boxDom.clientWidth / boxDom.clientHeight;
-        camera.updateProjectionMatrix();
-        camera.position.z = 5;
-
-        // 创建立方体
-        const geometry = new THREE.BoxGeometry(1, 1, 1); 
-
-        // 设置立方体受灯光影响的材质
-        // const material = new THREE.MeshPhongMaterial({ color: 0x44aa88, emissive: '', fog: true, specular: 'red' });
-        // const material = new THREE.MeshBasicMaterial({ color: 0x44aa88});
-
-        // 添加网格
-        // const cube = new THREE.Mesh(geometry, material);
-        // scene.add( cube );
-
-        const makeInstance = (geometry: THREE.BufferGeometry, colorOptions: THREE.MeshPhongMaterialParameters, x: number) => {
-            // 创建受灯光影响的材质
-            const material = new THREE.MeshPhongMaterial({...colorOptions});
-     
-            const cube = new THREE.Mesh(geometry, material);
-            scene.add(cube);
-           
-            cube.position.x = x;
-           
-            return cube;
-        };
-
-        const cubes = [
-            makeInstance(geometry, { color: 0x8844aa, emissive: '', fog: true, specular: 'green' }, -2),
-            makeInstance(geometry, { color: 0x44aa88, emissive: '', fog: true, specular: 'red' },  0),
-            makeInstance(geometry, { color: 0xaa8844, emissive: '', fog: true, specular: 'pink' },  2),
-        ];
-
-        // 创建平行光灯光
-        const light = new THREE.DirectionalLight(0xFFFFFF, 1);
-        light.position.set(-1, 2, 4);
-        scene.add(light);
-
-        webGLRender.setSize( boxDom.clientWidth, boxDom.clientHeight );
-
-        const animate = () => {
-            requestAnimationFrame( animate );
-            // cube.rotation.x += 0.01;
-            // cube.rotation.y += 0.01;
-            // webGLRender.render( scene, camera );
- 
-            cubes.forEach((cube, ndx) => {
-                cube.rotation.x += 0.01;
-                cube.rotation.y += 0.01;
-                
-            });
-            webGLRender.render( scene, camera );
-        };
-
-        // 渲染
-        animate();
+        console.log(newPlayer, "this is a newPlayer Class.");
     }, []);
 
-    return <div className='three-demo1'>
-        <canvas id='demo1-box'></canvas>
-    </div>
+    return <div className='three-demo1' id='map'></div>
 };
 
 export default ThreeDemo1;
